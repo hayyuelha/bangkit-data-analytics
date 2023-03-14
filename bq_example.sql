@@ -93,7 +93,7 @@ FROM monthly_users_cumulative;
 -- WHERE country = 'United Kingdom'
 -- AND gender = 'M'
 
--- transactions volume geographical distribution, monthly, breakdown by department & category
+-- transactions volume geographical distribution, monthly
 WITH 
 -- adding information about users
 orders_x_users AS ( 
@@ -134,22 +134,33 @@ orders_x_order_items AS (
          inventory_items.product_department,
          inventory_items.product_retail_price,
          inventory_items.product_distribution_center_id,
-         inventory_items.cost
+         inventory_items.cost,
+         distribution_centers.name
   FROM orders_x_order_items
   LEFT JOIN `bigquery-public-data.thelook_ecommerce.inventory_items` AS inventory_items
   ON orders_x_order_items.inventory_item_id = inventory_items.id
+  LEFT JOIN `bigquery-public-data.thelook_ecommerce.distribution_centers` AS distribution_centers
+  ON inventory_items.product_distribution_center_id = distribution_centers.id
+)
+, orders_x_users AS (
+  SELECT orders_x_inventory.*,
+         users.country AS users_country,
+  FROM orders_x_inventory 
+  LEFT JOIN `bigquery-public-data.thelook_ecommerce.users` AS users
+  ON orders_x_inventory.user_id = users.id
 )
 , monthly_order_product_category AS (
   SELECT DATE_TRUNC(DATE(created_at),MONTH) AS reporting_month,
+         users_country,
          product_department,
          product_category, -- 1 order might consist of > 1 categories
          COUNT(DISTINCT order_id) AS n_order,
          COUNT(DISTINCT user_id) AS n_purchasers,
          SUM(product_retail_price) AS total_product_retail_price,
          SUM(cost) AS total_cost
-  FROM orders_x_inventory
-  GROUP BY 1,2,3
-  ORDER BY 1,2,3
+  FROM orders_x_users
+  GROUP BY 1,2,3,4
+  ORDER BY 1,2,3,4
 )
 SELECT *,
        total_product_retail_price - total_cost AS total_profit
